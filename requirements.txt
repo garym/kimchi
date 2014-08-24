@@ -1,0 +1,1 @@
+-e git+https://github.com/saeschdivara/ArangoPy.git#egg=ArangoPy
