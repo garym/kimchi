@@ -2,7 +2,7 @@
 
 Kimchi Is a Markov Chain Harangue Instigator. It's entire purpose is to reply
 to a message in the hope of either funny, suprising, thought-provoking,
-inspiring or just plain rude.
+inspiring or just plain rude way.
 
 Although the author was a great fan of MegaHAL, he never had any intention of
 writing a program of this kind. However, one day, when saying how he felt he
