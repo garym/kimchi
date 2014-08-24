@@ -22,14 +22,14 @@ The remaining dependencies are dealt with in the next section.
 
 ## Installing
 
-'''sh
+```sh
 pip install -r requirements.txt
 python setup.py install
-'''
+```
 
 ## Running
 
-'''sh
+```sh
 kimchi learn --file [learning text file]
 kimchi response [a word or phrase]
-'''
+```
