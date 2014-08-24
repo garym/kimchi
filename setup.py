@@ -25,6 +25,6 @@ setup(
     license='LICENSE.txt',
     entry_points="""
             [console_scripts]
-            kimichi = kimichi.kimchicli:run
+            kimchi = kimchi.kimchicli:run
             """
 )

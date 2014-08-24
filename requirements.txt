@@ -1,1 +1,1 @@
--e git+https://github.com/saeschdivara/ArangoPy.git#egg=ArangoPy
+-e git+https://github.com/joymax/arango-python.git#egg=arango
