@@ -16,6 +16,7 @@
 
 import argparse
 import random
+import sys
 from functools import partial
 from arango import create
 
@@ -135,18 +136,19 @@ def run():
     # learning options
     learning_parser = argparse.ArgumentParser(add_help=False)
     learning_parser.add_argument(
-        '-f', '--file', nargs='+', action='append',
-        help="Specify a file from which to learn.")
+        'infile', metavar='INFILE', nargs='?', type=argparse.FileType('r'),
+        default=sys.stdin,
+        help="An input file from which to learn")
     learning_parser.add_argument(
         '--ignore-case', action='store_true', default=False,
         help="Set input to be case insensitive.")
 
-    # response options
-    response_parser = argparse.ArgumentParser(add_help=False)
-    response_parser.add_argument(
-        '-m', '--message', nargs='+', action='append',
+    # reply options
+    reply_parser = argparse.ArgumentParser(add_help=False)
+    reply_parser.add_argument(
+        'message', metavar='MSG', nargs='+', action='append',
         help="Specify a message to respond to.")
-    response_parser.add_argument(
+    reply_parser.add_argument(
         '--title-case', action='store_true', default=False,
         help="Set output to use title casing.")
 
@@ -160,10 +162,10 @@ def run():
     learn_subparser.set_defaults(func=do_learn)
 
     ### response command
-    response_subparser = subparsers.add_parser(
-        'response', help="send a message to get a reply back",
-        parents=[response_parser, db_parser, modelling_parser])
-    response_subparser.set_defaults(func=do_response)
+    reply_subparser = subparsers.add_parser(
+        'reply', help="send a message to get a reply back",
+        parents=[reply_parser, db_parser, modelling_parser])
+    reply_subparser.set_defaults(func=do_response)
 
     dargs = vars(parser.parse_args())
 
@@ -177,10 +179,8 @@ def run():
 def do_learn(dargs):
     # TODO - add sensible behaviour for when no files are specified (stdin?)
     brain = get_brain(dargs)
-    for filename in dargs['file'] if dargs['file'] else []:
-        with open(filename) as f:
-            for msg in f:
-                brain.learn(msg.lower() if dargs['ignore_case'] else msg)
+    for msg in dargs['infile']:
+        brain.learn(msg.lower() if dargs['ignore_case'] else msg)
 
 
 def do_response(dargs):
