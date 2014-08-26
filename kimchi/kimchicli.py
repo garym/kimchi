@@ -15,14 +15,17 @@
 # limitations under the License.
 
 import argparse
+import cmd
 import random
 import sys
 from functools import partial
 from arango import create
 
+DEF_CHAIN_ORDER = 2
+
 
 class Brain(object):
-    def __init__(self, dbname="chains", chainorder=2):
+    def __init__(self, dbname="chains", chainorder=DEF_CHAIN_ORDER):
         conn = create(db=dbname)
         conn.database.create()
         conn.chains.create()
@@ -103,11 +106,14 @@ class Brain(object):
 
     def generate_candidate_reply(self, word_list):
         word = random.choice(word_list)
-        current_doc = random.choice(
-            [d for d in self.get_nodes_by_first_word(word)])
-        forward_words = self.get_word_chain(current_doc, "outbound")
-        reverse_words = self.get_word_chain(current_doc, "inbound")
-        reply = reverse_words[::-1] + forward_words[1:]
+        try:
+            current_doc = random.choice(
+                [d for d in self.get_nodes_by_first_word(word)])
+            forward_words = self.get_word_chain(current_doc, "outbound")
+            reverse_words = self.get_word_chain(current_doc, "inbound")
+            reply = reverse_words[::-1] + forward_words[1:]
+        except IndexError:
+            reply = []
         return reply
 
     def generate_replies(self, msg):
@@ -115,6 +121,8 @@ class Brain(object):
         #starttime = time.time()
         #while time.time() - starttime < 0.25:
         cr = self.generate_candidate_reply(words)
+        if not cr:
+            cr = ["I have nothing to say about that"]
         return ' '.join(cr)
 
 
@@ -139,18 +147,12 @@ def run():
         'infile', metavar='INFILE', nargs='?', type=argparse.FileType('r'),
         default=sys.stdin,
         help="An input file from which to learn")
-    learning_parser.add_argument(
-        '--ignore-case', action='store_true', default=False,
-        help="Set input to be case insensitive.")
 
     # reply options
     reply_parser = argparse.ArgumentParser(add_help=False)
     reply_parser.add_argument(
         'message', metavar='MSG', nargs='+', action='append',
         help="Specify a message to respond to.")
-    reply_parser.add_argument(
-        '--title-case', action='store_true', default=False,
-        help="Set output to use title casing.")
 
     subparsers = parser.add_subparsers(title='Subcommands', dest='subcommand')
     subparsers.required = True
@@ -167,6 +169,12 @@ def run():
         parents=[reply_parser, db_parser, modelling_parser])
     reply_subparser.set_defaults(func=do_response)
 
+    ### shell command
+    shell_subparser = subparsers.add_parser(
+        'shell', help="enter an interactive shell",
+        parents=[db_parser, modelling_parser])
+    shell_subparser.set_defaults(func=do_shell)
+
     dargs = vars(parser.parse_args())
 
     for option in ('file', 'message'):
@@ -180,18 +188,48 @@ def do_learn(dargs):
     # TODO - add sensible behaviour for when no files are specified (stdin?)
     brain = get_brain(dargs)
     for msg in dargs['infile']:
-        brain.learn(msg.lower() if dargs['ignore_case'] else msg)
+        brain.learn(msg)
 
 
 def do_response(dargs):
     brain = get_brain(dargs)
     for msg in dargs['message'] if dargs['message'] else []:
-        reply = brain.generate_replies(msg)
-        print(reply.title() if dargs['title_case'] else reply)
+        print(brain.generate_replies(msg))
+
+
+def do_shell(dargs):
+    BrainShell(dargs).cmdloop()
 
 
 def get_brain(dargs):
     return Brain(dargs['dbname'], dargs['chain_order'])
+
+
+class BrainShell(cmd.Cmd):
+    """Command processor for Kimchi"""
+    def __init__(self, dargs, *args, **kwargs):
+        self.brain = get_brain(dargs)
+        super(BrainShell, self).__init__(*args, **kwargs)
+
+    def do_EOF(self, line):
+        print('Bye')
+        return True
+
+    def default(self, line):
+        self.do_learn(line)
+        self.do_reply(line)
+
+    def do_setbrain(self, line):
+        sl = line.split()
+        db, c_o = sl[:2] if len(sl) > 1 else (sl[0], DEF_CHAIN_ORDER)
+        self.brain = get_brain({'dbname': db, 'chain_order': c_o})
+
+    def do_learn(self, line):
+        self.brain.learn(line)
+
+    def do_reply(self, line):
+        reply = self.brain.generate_replies(line)
+        print(reply)
 
 
 if __name__ == '__main__':
