@@ -2,7 +2,7 @@
 
 KIMCHI Is a Markov Chain Harangue Instigator. It's entire purpose is to reply
 to a message in the hope of getting either funny, suprising, thought-provoking,
-inspiring or just plain rude responces.
+inspiring or just plain rude responses.
 
 Although the author was a great fan of MegaHAL, he never had any intention of
 writing a program of this kind. However, one day, when saying how he felt he
@@ -16,7 +16,7 @@ submit a talk for pyconuk 2014. Still, there are other conferences.
 
 ## Dependencies
 
-Kimchi requires ArangoDB to be installed - see the instructions for your sustem
+Kimchi requires ArangoDB to be installed - see the instructions for your system
 at https://www.arangodb.org/download
 
 The remaining dependencies are dealt with in the next section.
