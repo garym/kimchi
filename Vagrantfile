@@ -8,7 +8,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vm.box = "kimchibox"
   config.vm.box_url = "https://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box"
 
-  config.vm.network :forwarded_port, guest: 8529, host: 88529
+  config.vm.network "private_network", type: "dhcp"
+  config.vm.network "forwarded_port", guest: 8529, host: 8000
   config.vm.synced_folder "salt/roots/", "/srv/"
 
   config.vm.provision :salt do |salt|

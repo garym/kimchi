@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2014 Gary Martin
+# Copyright 2015 Gary Martin
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,90 +19,120 @@ import cmd
 import random
 import sys
 from functools import partial
-from arango import create
+
+from hashlib import sha1
+from genericapi import GenericAPI as Connector
+from arangodbapi import (Arango, ArangoError, Document, Edge, SimpleQuery,
+                         Traversal)
 
 DEF_CHAIN_ORDER = 2
 
 
 class Brain(object):
     def __init__(self, dbname="chains", chainorder=DEF_CHAIN_ORDER):
-        conn = create(db=dbname)
-        conn.database.create()
-        conn.chains.create()
-        conn.links.create(type=conn.COLLECTION_EDGES)
-        self.conn = conn
-        self.chains = conn.chains
-        self.links = conn.links
+        conn = Connector('http://127.0.0.1:8529')
+        sysdb = Arango(conn._db._system._api.database)
+        try:
+            sysdb.create({'name': dbname})
+        except ArangoError as e:
+            if e.code != 409:
+                raise
+        db = conn._db[dbname]
+        self.docs = Document(db)
+        self.edges = Edge(db)
+        self.simple_query = SimpleQuery(db)
+        self.traversal = Traversal(db)
 
         self.stop = ''
         self.chainorder = chainorder
+        self.collection_name = "chains"
+        self.edge_collection_name = "links"
 
-    def get_node(self, node):
-        return self.chains.query.filter(
-            "obj.node == {}".format(node)).execute().first
+    def add_nodes(self, nodes):
+        handles = []
+        collection = self.collection_name
+        for node in nodes:
+            data = {
+                '_key': sha1(str(node).encode('utf8')).hexdigest(),
+                'base_word': node[0],
+                'node': node,
+            }
+            try:
+                docres = self.docs.create(data, params={
+                    'collection': collection, 'createCollection': True})
+            except ArangoError:
+                docres = self.simple_query.by_example(collection, data)[0]
+            handles.append(docres['_id'])
+        return handles
 
-    def get_link(self, doc, next_doc):
-        return self.links.query.filter(
-            'obj._from == "{}" && obj._to == "{}"'.format(
-                doc.id, next_doc.id)).execute().first
+    def add_edges(self, handles):
+        current_handle, *rest = handles
+        collection = self.edge_collection_name
+        for next_handle in rest:
+            data = {
+                '_key': sha1(
+                    str((current_handle, next_handle)).encode('utf8')
+                ).hexdigest(),
+            }
+            try:
+                self.edges.create(data, params={
+                    'collection': collection, 'createCollection': True,
+                    'from': current_handle, 'to': next_handle})
+            except ArangoError:
+                pass
+            current_handle = next_handle
 
-    def add_edge(self, node, next_node, edge_data=None):
-        doc = self.get_node(node)
-        if doc is None:
-            doc = self.chains.documents.create({'node': node})
-        next_doc = self.get_node(next_node)
-        if next_doc is None:
-            next_doc = self.chains.documents.create({'node': next_node})
-        link = self.get_link(doc, next_doc)
-        if link is None:
-            self.links.edges.create(
-                doc, next_doc, {} if edge_data is None else edge_data)
+    def get_node_by_handle(self, handle):
+        return self.docs[handle]
+
+    def get_node_by_key(self, key):
+        return self.docs[self.collection_name][key]
 
     def get_nodes_by_first_word(self, word):
-        return (c for c in self.chains.query.filter(
-            "obj.node[0] == '{}'".format(word)).execute())
+        return self.simple_query.by_example(
+            self.collection_name, {'base_word': word})
 
-    def get_nodes_by_id(self, nid):
-        return self.chains.query.filter(
-            "obj._id == '{}'".format(nid)).execute().first
+    def get_edge_by_handle(self, handle):
+        return self.edges[handle]
 
-    def neighbours(self, doc, direction="any"):
-        def wrapper(c, i):
-            return i
-        return (r for r in self.chains.query.cursor(wrapper=wrapper).over(
-            'NEIGHBORS(chains, links, "{}", "{}")'.format(doc.id, direction
-                                                          )).execute())
-    forward_link = partial(neighbours, direction="outbound")
-    reverse_link = partial(neighbours, direction="inbound")
-
-    def gen_key(self, msgparts):
-        return self.sep.join((self.prefix, self.sep.join(msgparts)))
+    def get_edge_by_key(self, key):
+        return self.docs[self.edge_collection_name][key]
 
     def chunk_msg(self, msg):
         words = [self.stop] + msg.split() + [self.stop]
         while len(words) < self.chainorder:
             words.append(self.stop)
-        return ((words[i:i + self.chainorder + 1],
-                 words[i + 1:i + self.chainorder + 2])
-                for i in range(len(words) - self.chainorder))
+        return (words[i:i + self.chainorder + 1]
+                for i in range(1 + len(words) - self.chainorder))
 
     def learn(self, msg, reply=False):
-        for (node1, node2) in self.chunk_msg(msg):
-            self.add_edge(node1, node2)
+        nodes_to_add = self.chunk_msg(msg)
+        nodes = self.add_nodes(nodes_to_add)
+        self.add_edges(nodes)
 
     def get_word_chain(self, doc, direction):
-        first, second = doc.body['node'][:2]
-        if not first:
-            return []
-        elif direction == 'outbound' and not second:
-            return [first, ]
-        else:
-            neighbours = [n for n in self.neighbours(doc, direction=direction)]
-            if not neighbours:
-                return [n for n in doc.body['node'] if n]
-            new_doc = self.get_nodes_by_id(
-                random.choice(neighbours)['vertex']['_id'])
-            return [first] + self.get_word_chain(new_doc, direction)
+        visitor = """
+            if (! result || ! result.visited) { return; }
+            if (result.visited.vertices) {
+              result.visited.vertices.push(vertex.base_word);
+            }
+            if (result.visited.paths) {
+              if (vertex.base_word == '') {
+                var cpath = [];
+                path.vertices.forEach(function (v) {
+                  cpath.push(v.base_word);
+                });
+                result.visited.paths.push(cpath);
+              }
+            }
+        """
+
+        paths = self.traversal.traverse(
+            doc['_id'],
+            self.edge_collection_name,
+            direction=direction,
+            visitor=visitor)['result']['visited']['paths']
+        return random.choice(paths)
 
     def generate_candidate_reply(self, word_list):
         word = random.choice(word_list)

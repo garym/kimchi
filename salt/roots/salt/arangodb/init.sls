@@ -1,8 +1,8 @@
 /tmp/Release.key: 
   file:
     - managed
-    - source: https://www.arangodb.org/repositories/arangodb2/xUbuntu_14.04/Release.key
-    - source_hash: sha512=0e78f8dd3dcec395a2ba27e4f5483b9c4621b0fd8d59961aa5611519d5d6c6bb8ddd7c42d824931030c02be77205a7ff84e83ba487c48df7525def6c64517569
+    - source: https://www.arangodb.com/repositories/arangodb2/xUbuntu_14.04/Release.key
+    - source_hash: sha512=80e218f93a2ad352854cfb88a9aaa3784f858443b86e4793f5f8cf3aab7f990284900c116083c9cccedd3ab11d6b3a567f183fa96eed6ad440268004266ba5c8
 
 add_arango_key:
   cmd.run:
