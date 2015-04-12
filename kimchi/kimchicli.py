@@ -237,17 +237,39 @@ def get_brain(dargs):
 
 class BrainShell(cmd.Cmd):
     """Command processor for Kimchi"""
+    intro = ("+--------------------------------------+\n"
+             "|                                      |\n"
+             "| #   #  ##### #   #  #### #   # ##### |\n"
+             "| #  #     #   ## ## #     #   #   #   |\n"
+             "| ###      #   # # # #     #####   #   |\n"
+             "| #  #     #   #   # #     #   #   #   |\n"
+             "| #   #  ##### #   #  #### #   # ##### |\n"
+	     "|                                      |\n"
+             "+--------------------------------------+\n")
+    prompt = "kimchi> "
+
     def __init__(self, dargs, *args, **kwargs):
         self.brain = get_brain(dargs)
+        self.last_line = None
         super(BrainShell, self).__init__(*args, **kwargs)
 
     def do_EOF(self, line):
-        print('Bye')
-        return True
+        return self.do_quit(line)
+
+    def do_quit(self, line):
+        if len(line.split()) > 1:
+            self.default(line)
+        else:
+            print('Bye')
+            return True
 
     def default(self, line):
         self.do_learn(line)
-        self.do_reply(line)
+        self.last_line = line
+
+    def emptyline(self):
+        if self.last_line is not None:
+            self.do_reply(self.last_line)
 
     def do_setbrain(self, line):
         sl = line.split()
@@ -255,9 +277,11 @@ class BrainShell(cmd.Cmd):
         self.brain = get_brain({'dbname': db, 'chain_order': c_o})
 
     def do_learn(self, line):
+        self.last_line = None
         self.brain.learn(line)
 
     def do_reply(self, line):
+        self.last_line = None
         reply = self.brain.generate_replies(line)
         print(reply)
 
