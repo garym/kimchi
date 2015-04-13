@@ -21,9 +21,9 @@ import sys
 from functools import partial
 
 from hashlib import sha1
-from genericapi import GenericAPI as Connector
-from arangodbapi import (Arango, ArangoError, Document, Edge, SimpleQuery,
-                         Traversal)
+from kimchi.genericapi import GenericAPI as Connector
+from kimchi.arangodbapi import (Arango, ArangoError, Document, Edge,
+                                SimpleQuery, Traversal)
 
 DEF_CHAIN_ORDER = 2
 

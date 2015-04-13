@@ -1,1 +1,1 @@
--e git+https://github.com/joymax/arango-python.git#egg=arango
+requests==2.6.0
