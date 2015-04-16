@@ -26,6 +26,7 @@ from kimchi.arangodbapi import (Arango, ArangoError, Document, Edge,
                                 SimpleQuery, Traversal)
 
 DEF_CHAIN_ORDER = 2
+MAX_REPLIES = 30
 
 
 class Brain(object):
@@ -132,19 +133,36 @@ class Brain(object):
             self.edge_collection_name,
             direction=direction,
             visitor=visitor)['result']['visited']['paths']
-        return random.choice(paths)
+        return paths
 
     def generate_candidate_reply(self, word_list):
-        word = random.choice(word_list)
-        try:
-            current_doc = random.choice(
-                [d for d in self.get_nodes_by_first_word(word)])
-            forward_words = self.get_word_chain(current_doc, "outbound")
-            reverse_words = self.get_word_chain(current_doc, "inbound")
-            reply = reverse_words[::-1] + forward_words[1:]
-        except IndexError:
-            reply = []
-        return reply
+        sorted_words = sorted(word_list, key=len)[::-1]
+        replies = []
+        for word in sorted_words:
+            docs = self.get_nodes_by_first_word(word)
+            for doc in docs:
+                forward_words = self.get_word_chain(doc, "outbound")
+                reverse_words = self.get_word_chain(doc, "inbound")
+                for forward_chain in forward_words:
+                    for reverse_chain in reverse_words:
+                        reply = reverse_chain[::-1] + forward_chain[1:]
+                        replies.append((self.score(reply, word_list), reply))
+                if len(replies) > MAX_REPLIES:
+                    break
+            if len(replies) > MAX_REPLIES:
+                break
+        if replies:
+            return random.choice(sorted(replies)[len(replies) // 2:])[1]
+
+    def score(self, words, original):
+        if not words:
+            return 0.0
+        # words used less in the brain should improve score?
+        # sum(1 / len(self.get_nodes_by_first_word(w)) for w in words)
+        max_word_length = max(len(w) for w in words)
+        average_word_length = sum(len(w) for w in words) / len(words)
+        return (max_word_length * average_word_length *
+                len(set(words) - set(original)))
 
     def generate_replies(self, msg):
         words = msg.split()
