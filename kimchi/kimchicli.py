@@ -45,10 +45,25 @@ class Brain(object):
         self.simple_query = SimpleQuery(db)
         self.traversal = Traversal(db)
 
-        self.stop = '////////'
-        self.chainorder = chainorder
         self.collection_name = "chains"
         self.edge_collection_name = "links"
+        self.control_collection_name = "control"
+        self.chainorder = self.get_or_set_brain_info('chainorder', chainorder)
+        self.stop = self.get_or_set_brain_info('stop', '////////')
+
+    def get_or_set_brain_info(self, key, value):
+        collection = self.control_collection_name
+        try:
+            docs = self.simple_query.by_example(
+                collection, {'_key': key})
+        except KeyError:
+            docs = []
+        if docs:
+            return docs[0]['value']
+        doc = self.docs.create(
+            {'_key': key, 'value': value},
+            params={'collection': collection, 'createCollection': True})
+        return value
 
     def add_nodes(self, nodegenerator):
         handles = []
