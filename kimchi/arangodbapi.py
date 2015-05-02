@@ -95,11 +95,12 @@ class Traversal(Arango):
 
     def traverse(self, startVertex, edge_collection, minDepth=None,
                  maxDepth=None, direction='outbound', visitor=None,
-                 params=None):
+                 filterfn=None, maxIterations=None, params=None):
         data = {
             'startVertex': startVertex,
             'edgeCollection': edge_collection,
             'direction': direction,
+            'uniqueness': {'vertices': 'path', "edges": 'path'},
         }
         if minDepth is not None:
             data['minDepth'] = minDepth
@@ -107,6 +108,10 @@ class Traversal(Arango):
             data['maxDepth'] = maxDepth
         if visitor is not None:
             data['visitor'] = visitor
+        if filterfn is not None:
+            data['filter'] = filterfn
+        if maxIterations is not None:
+            data['maxIterations'] = maxIterations
         if params is None:
             params = {}
         return self.conn.post(data, params=params)
