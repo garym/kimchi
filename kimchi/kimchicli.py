@@ -27,6 +27,7 @@ from kimchi.arangodbapi import (Arango, ArangoError, Document, Edge,
 
 DEF_CHAIN_ORDER = 2
 MAX_REPLIES = 30
+MAX_REPLY_LENGTH = 15
 
 
 class Brain(object):
@@ -44,25 +45,43 @@ class Brain(object):
         self.simple_query = SimpleQuery(db)
         self.traversal = Traversal(db)
 
-        self.stop = ''
+        self.stop = '////////'
         self.chainorder = chainorder
         self.collection_name = "chains"
         self.edge_collection_name = "links"
 
-    def add_nodes(self, nodes):
+    def add_nodes(self, nodegenerator):
         handles = []
         collection = self.collection_name
-        for node in nodes:
+        nodes = [n for n in nodegenerator]
+        full_length = len(nodes)
+        for i, node in enumerate(nodes):
             data = {
                 '_key': sha1(str(node).encode('utf8')).hexdigest(),
                 'base_word': node[0],
                 'node': node,
             }
+            full_data = {
+                'outbound_distance': full_length - i,  # distance to end
+                'inbound_distance': i + 1,  # distance from start
+            }
+            full_data.update(data)
             try:
-                docres = self.docs.create(data, params={
+                docres = self.docs.create(full_data, params={
                     'collection': collection, 'createCollection': True})
             except ArangoError:
                 docres = self.simple_query.by_example(collection, data)[0]
+                updated = False
+                for key in ('outbound_distance', 'inbound_distance'):
+                    if key not in docres:
+                        updated = True
+                    elif docres[key] < full_data[key]:
+                        full_data[key] = docres[key]
+                    elif docres[key] > full_data[key]:
+                        updated = True
+                if updated:
+                    self.docs.update(docres['_id'], full_data, params={
+                        'collection': collection})
             handles.append(docres['_id'])
         return handles
 
@@ -91,7 +110,7 @@ class Brain(object):
 
     def get_nodes_by_first_word(self, word):
         return self.simple_query.by_example(
-            self.collection_name, {'base_word': word})
+            self.collection_name, {'base_word': word}, limit=10)
 
     def get_edge_by_handle(self, handle):
         return self.edges[handle]
@@ -118,28 +137,41 @@ class Brain(object):
               result.visited.vertices.push(vertex.base_word);
             }
             if (result.visited.paths) {
-              if (vertex.base_word == '') {
-                var cpath = [];
-                path.vertices.forEach(function (v) {
-                  cpath.push(v.base_word);
-                });
-                result.visited.paths.push(cpath);
-              }
+              var cpath = [];
+              path.vertices.forEach(function (v) {
+                cpath.push(v.base_word);
+              });
+              result.visited.paths.push(cpath);
             }
         """
 
-        paths = self.traversal.traverse(
+        filterfn = """
+            if (path && path.length + vertex.%s > %d) {
+              return 'exclude';
+            }
+        """ % (direction + "_distance", MAX_REPLY_LENGTH) 
+
+        result = self.traversal.traverse(
             doc['_id'],
             self.edge_collection_name,
             direction=direction,
-            visitor=visitor)['result']['visited']['paths']
-        return paths
+            maxDepth=MAX_REPLY_LENGTH,
+            filterfn=filterfn,
+            visitor=visitor)
+
+        if 'result' not in result:
+            return []
+        paths = result['result']['visited']['paths']
+        returnpaths = [p[:-1] for p in paths if p[-1] == self.stop]
+        return returnpaths
 
     def generate_candidate_reply(self, word_list):
         sorted_words = sorted(word_list, key=len)[::-1]
         replies = []
         for word in sorted_words:
+            print(word)
             docs = self.get_nodes_by_first_word(word)
+            random.shuffle(docs)
             for doc in docs:
                 forward_words = self.get_word_chain(doc, "outbound")
                 reverse_words = self.get_word_chain(doc, "inbound")
@@ -152,11 +184,12 @@ class Brain(object):
             if len(replies) > MAX_REPLIES:
                 break
         if replies:
-            return random.choice(sorted(replies)[len(replies) // 2:])[1]
+            return random.choice(sorted(replies)[::-1])[1]
 
     def score(self, words, original):
         if not words:
             return 0.0
+        return 1.0
         # words used less in the brain should improve score?
         # sum(1 / len(self.get_nodes_by_first_word(w)) for w in words)
         max_word_length = max(len(w) for w in words)
@@ -235,7 +268,9 @@ def run():
 def do_learn(dargs):
     # TODO - add sensible behaviour for when no files are specified (stdin?)
     brain = get_brain(dargs)
-    for msg in dargs['infile']:
+    for i, msg in enumerate(dargs['infile']):
+        if i % 100 == 0:
+            print(i)
         brain.learn(msg)
 
 
