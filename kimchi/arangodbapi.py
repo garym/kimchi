@@ -42,6 +42,13 @@ class Arango(object):
         self._check_exception_required(resp, data)
         return resp['result'] if 'result' in resp else resp
 
+    def update(self, name, data, params=None):
+        if params is None:
+            params = {}
+        resp = self.conn[name].put(data, params=params)
+        self._check_exception_required(resp, data)
+        return resp['result'] if 'result' in resp else resp
+
     def list(self, params=None):
         if params is None:
             params = {}
