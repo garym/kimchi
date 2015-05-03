@@ -19,7 +19,24 @@ submit a talk for pyconuk 2014. Still, there are other conferences.
 Kimchi requires ArangoDB to be installed - see the instructions for your system
 at https://www.arangodb.org/download
 
-The remaining dependencies are dealt with in the next section.
+Kimchi also makes use of PyStemmer which, if installed from source, needs to be
+compiled. This requires the Python 3 development libraries and compiler tools.
+It may also be possible to install PyStemmer directly from your distribution
+repositories.
+
+For the former approach:
+
+ * On Debian/Ubuntu:
+   ```sh
+   sudo apt-get install python3-dev build-essential
+   ```
+ * On Fedora (untested):
+   ```sh
+   sudo yum install python-devel
+   ```
+
+The remaining dependencies, including actually installing PyStemmer are dealt
+with in the next section.
 
 ## Installing
 
@@ -33,4 +50,18 @@ python setup.py install
 ```sh
 kimchi learn [learning text file]
 kimchi reply "a word or phrase" ["another word or phrase" [...]]
+```
+
+Optionally you can specify a database in order to separate out specific
+personalities:
+
+```sh
+kimchi learn --dbname=aliens aliens.trn
+kimchi reply --dbname=aliens "where are the aliens?"
+```
+
+which, depending on the text in aliens.trn and luck, might respond with:
+
+```
+Aliens? You mean the air ducts?
 ```
