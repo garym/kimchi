@@ -85,3 +85,30 @@ A # at the beginning of a line will result in it being ignored.
 Kimchi does not currently provide any sample data but it should be compatible
 with .trn files for MegaHAL (see http://megahal.sourceforge.net/download/old
 for zip files for examples).
+
+Note that if your data source is a plain text log file, it is relatively easy
+to process such a log file with sed to clean up the data. For example, for
+hexchat's irc logs, you could get a reasonably good sample of the data with
+the following command:
+
+```sh
+sed -e '/\*/ d' \
+    -e 's/^.*\t//' \
+    path/to/logfile.log  > logfile.trn
+```
+
+which removes any line with an asterisk (which might be overkill) and strips
+the beginning of lines up to the last tab.
+
+If in addition you use an irc bouncer, you might need to do some additional
+cleanup. For example, for bip you might do this:
+
+```sh
+sed -e '/End of backlog/ d' \
+    -e '/\*/ d' \
+    -e 's/^.*\t//' \
+    -e 's/^[0-9][^>].*>//' \
+    path/to/logfile.log > logfile.trn
+```
+
+which additionally strips the "End of backlog" message and attempts to remove the timestamp at the beginning of lines repeated from the backlog.
