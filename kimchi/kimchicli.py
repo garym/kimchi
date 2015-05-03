@@ -243,13 +243,18 @@ def run():
     db_parser = argparse.ArgumentParser(add_help=False)
     db_parser.add_argument(
         '--dbname', default='chains',
-        help="Database to use.")
+        help="Specifies the brain database.")
 
     # simulation options
+    note = ("Note that this option is overridden by database settings and "
+            "so is only used at database initialisation time.")
     modelling_parser = argparse.ArgumentParser(add_help=False)
     modelling_parser.add_argument(
         '--chain-order', type=int, default=DEF_CHAIN_ORDER,
-        help="Set the simulation chain size parameter.")
+        help="Set the simulation chain size parameter. " + note)
+    modelling_parser.add_argument(
+        '--language', choices=Stemmer.algorithms(), default='english',
+        help="Set the simulation language for the stemmer. " + note)
 
     # learning options
     learning_parser = argparse.ArgumentParser(add_help=False)
@@ -314,7 +319,8 @@ def do_shell(dargs):
 
 
 def get_brain(dargs):
-    return Brain(dargs['dbname'], dargs['chain_order'])
+    return Brain(dargs['dbname'], dargs['chain_order'],
+                 stemmer=dargs['language'])
 
 
 class BrainShell(cmd.Cmd):

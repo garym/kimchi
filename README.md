@@ -56,7 +56,7 @@ Optionally you can specify a database in order to separate out specific
 personalities:
 
 ```sh
-kimchi learn --dbname=aliens aliens.trn
+kimchi learn --dbname=aliens < aliens.trn
 kimchi reply --dbname=aliens "where are the aliens?"
 ```
 
@@ -65,3 +65,23 @@ which, depending on the text in aliens.trn and luck, might respond with:
 ```
 Aliens? You mean the air ducts?
 ```
+
+## Learning files
+
+While it is possible to teach kimchi to talk from scratch, this could be a very slow process and so it is expected that you will load in data from a file.
+
+An example learning file might look something like this:
+
+```
+# This is a comment
+Hello, how are you?
+My name is Kim.
+Who are you?
+# And so on
+```
+
+A # at the beginning of a line will result in it being ignored.
+
+Kimchi does not currently provide any sample data but it should be compatible
+with .trn files for MegaHAL (see http://megahal.sourceforge.net/download/old
+for zip files for examples).
