@@ -16,6 +16,7 @@
 
 import argparse
 import cmd
+import logging
 import random
 import sys
 from functools import partial
@@ -27,7 +28,7 @@ from kimchi.arangodbapi import (Arango, ArangoError, Document, Edge,
 
 DEF_CHAIN_ORDER = 2
 MAX_REPLIES = 30
-MAX_REPLY_LENGTH = 15
+MAX_REPLY_LENGTH = 20
 
 
 class Brain(object):
@@ -134,13 +135,13 @@ class Brain(object):
         return self.docs[self.edge_collection_name][key]
 
     def chunk_msg(self, msg):
-        words = [self.stop] + msg.split() + [self.stop]
-        while len(words) < self.chainorder:
-            words.append(self.stop)
+        words = [self.stop] + msg.split() + [self.stop] * self.chainorder
         return (words[i:i + self.chainorder + 1]
                 for i in range(1 + len(words) - self.chainorder))
 
     def learn(self, msg, reply=False):
+        if msg.startswith('#'):
+            return 
         nodes_to_add = self.chunk_msg(msg)
         nodes = self.add_nodes(nodes_to_add)
         self.add_edges(nodes)
@@ -184,7 +185,7 @@ class Brain(object):
         sorted_words = sorted(word_list, key=len)[::-1]
         replies = []
         for word in sorted_words:
-            print(word)
+            logging.debug(word)
             docs = self.get_nodes_by_first_word(word)
             random.shuffle(docs)
             for doc in docs:
@@ -234,7 +235,7 @@ def run():
     # simulation options
     modelling_parser = argparse.ArgumentParser(add_help=False)
     modelling_parser.add_argument(
-        '--chain-order', type=int, default=1,
+        '--chain-order', type=int, default=DEF_CHAIN_ORDER,
         help="Set the simulation chain size parameter.")
 
     # learning options
@@ -285,7 +286,7 @@ def do_learn(dargs):
     brain = get_brain(dargs)
     for i, msg in enumerate(dargs['infile']):
         if i % 100 == 0:
-            print(i)
+            logging.debug(i)
         brain.learn(msg)
 
 
