@@ -27,10 +27,14 @@ repositories.
 For the former approach:
 
  * On Debian/Ubuntu:
+
+
    ```sh
    sudo apt-get install python3-dev build-essential
    ```
+
  * On Fedora (untested):
+
    ```sh
    sudo yum install python-devel
    ```
