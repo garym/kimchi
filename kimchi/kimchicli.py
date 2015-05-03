@@ -18,8 +18,11 @@ import argparse
 import cmd
 import logging
 import random
+import string
 import sys
 from functools import partial
+
+import Stemmer
 
 from hashlib import sha1
 from kimchi.genericapi import GenericAPI as Connector
@@ -29,10 +32,12 @@ from kimchi.arangodbapi import (Arango, ArangoError, Document, Edge,
 DEF_CHAIN_ORDER = 2
 MAX_REPLIES = 30
 MAX_REPLY_LENGTH = 20
+PUNCTUATION_MAP = str.maketrans({p: '' for p in string.punctuation})
 
 
 class Brain(object):
-    def __init__(self, dbname="chains", chainorder=DEF_CHAIN_ORDER):
+    def __init__(self, dbname="chains", chainorder=DEF_CHAIN_ORDER,
+                 stemmer='english'):
         conn = Connector('http://127.0.0.1:8529')
         sysdb = Arango(conn._db._system._api.database)
         try:
@@ -51,6 +56,11 @@ class Brain(object):
         self.control_collection_name = "control"
         self.chainorder = self.get_or_set_brain_info('chainorder', chainorder)
         self.stop = self.get_or_set_brain_info('stop', '////////')
+        stemmer_type = self.get_or_set_brain_info('stemmer', stemmer)
+        self.stemmer = Stemmer.Stemmer(stemmer_type)
+
+    def stemWord(self, word):
+        return self.stemmer.stemWord(word.lower().translate(PUNCTUATION_MAP))
 
     def get_or_set_brain_info(self, key, value):
         collection = self.control_collection_name
@@ -67,6 +77,7 @@ class Brain(object):
         return value
 
     def add_nodes(self, nodegenerator):
+        stemWord = self.stemWord
         handles = []
         collection = self.collection_name
         nodes = [n for n in nodegenerator]
@@ -74,7 +85,7 @@ class Brain(object):
         for i, node in enumerate(nodes):
             data = {
                 '_key': sha1(str(node).encode('utf8')).hexdigest(),
-                'base_word': node[0],
+                'base_word_stem': stemWord(node[0]),
                 'node': node,
             }
             full_data = {
@@ -126,7 +137,10 @@ class Brain(object):
 
     def get_nodes_by_first_word(self, word):
         return self.simple_query.by_example(
-            self.collection_name, {'base_word': word}, limit=10)
+            self.collection_name,
+            {'base_word_stem': self.stemWord(word)},
+            limit=10
+        )
 
     def get_edge_by_handle(self, handle):
         return self.edges[handle]
@@ -150,12 +164,12 @@ class Brain(object):
         visitor = """
             if (! result || ! result.visited) { return; }
             if (result.visited.vertices) {
-              result.visited.vertices.push(vertex.base_word);
+              result.visited.vertices.push(vertex.node[0]);
             }
             if (result.visited.paths) {
               var cpath = [];
               path.vertices.forEach(function (v) {
-                cpath.push(v.base_word);
+                cpath.push(v.node[0]);
               });
               result.visited.paths.push(cpath);
             }
@@ -205,7 +219,6 @@ class Brain(object):
     def score(self, words, original):
         if not words:
             return 0.0
-        return 1.0
         # words used less in the brain should improve score?
         # sum(1 / len(self.get_nodes_by_first_word(w)) for w in words)
         max_word_length = max(len(w) for w in words)
